@@ -1,6 +1,6 @@
 import graphene
 from fastapi import FastAPI
-from starlette.graphql import GraphQLApp
+from starlette_graphene3 import GraphQLApp, make_graphiql_handler
 
 import models
 from db_conf import db_session
@@ -17,8 +17,7 @@ class Query(graphene.ObjectType):
     post_by_id = graphene.Field(PostModel, post_id=graphene.Int(required=True))
 
     def resolve_all_posts(self, info):
-        query = PostModel.get_query(info)
-        return query.all()
+        return db.query(models.Post).all()
 
     def resolve_post_by_id(self, info, post_id):
         return db.query(models.Post).filter(models.Post.id == post_id).first()
@@ -46,4 +45,4 @@ class PostMutations(graphene.ObjectType):
     create_new_post = CreateNewPost.Field()
 
 
-app.add_route("/graphql", GraphQLApp(schema=graphene.Schema(query=Query, mutation=PostMutations)))
+app.mount("/graphql", GraphQLApp(schema=graphene.Schema(query=Query, mutation=PostMutations), on_get=make_graphiql_handler()))
