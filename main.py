@@ -1,10 +1,11 @@
 import graphene
 from fastapi import FastAPI
-from starlette_graphene3 import GraphQLApp, make_graphiql_handler
+from starlette_graphene3 import GraphQLApp
 
 import models
 from db_conf import db_session
 from schemas import PostModel, PostSchema
+from graphiql_handler import make_custom_graphiql_handler
 
 db = db_session.session_factory()
 
@@ -45,4 +46,4 @@ class PostMutations(graphene.ObjectType):
     create_new_post = CreateNewPost.Field()
 
 
-app.mount("/graphql", GraphQLApp(schema=graphene.Schema(query=Query, mutation=PostMutations), on_get=make_graphiql_handler()))
+app.mount("/graphql", GraphQLApp(schema=graphene.Schema(query=Query, mutation=PostMutations), on_get=make_custom_graphiql_handler()))
