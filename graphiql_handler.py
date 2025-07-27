@@ -7,7 +7,7 @@ def make_custom_graphiql_handler():
     Custom GraphiQL handler that uses reliable CDN URLs.
     Replaces the broken make_graphiql_handler from starlette-graphene3.
     """
-    
+
     graphiql_html = """
 <!DOCTYPE html>
 <html>
@@ -61,8 +61,8 @@ def make_custom_graphiql_handler():
 </body>
 </html>
     """
-    
+
     async def graphiql_handler(request: Request):
         return HTMLResponse(graphiql_html)
-    
+
     return graphiql_handler
