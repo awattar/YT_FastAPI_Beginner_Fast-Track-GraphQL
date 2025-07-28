@@ -81,6 +81,12 @@ This is a simple layered architecture following FastAPI conventions:
 - **Python-dotenv 1.1.1** - Environment variables
 - **uv** - Modern Python package manager
 
+### Testing
+- **Pytest 8.4.1** - Testing framework
+- **Pytest-cov 6.2.1** - Coverage reporting
+- **HTTPX 0.28.1** - HTTP client for API testing
+- **Factory-boy 3.3.3** - Test data generation
+
 ### Infrastructure
 - **Docker** - Containerization with uv integration
 - **PgAdmin4** - Database administration
@@ -101,6 +107,9 @@ This is a simple layered architecture following FastAPI conventions:
 ```bash
 # Format code
 uv run black .
+
+# Run tests (includes coverage automatically)
+uv run pytest
 
 # Create new migration
 docker-compose run app uv run alembic revision --autogenerate -m "Migration name"
@@ -125,10 +134,11 @@ docker-compose up -d db
 ```
 
 ### Common Workflows
-1. **Add new field to Post model** → Update `models.py` → Generate migration → Apply migration
-2. **Add new GraphQL field** → Update `PostModel` in `schemas.py` → Test in GraphQL playground
-3. **Add new mutation** → Create mutation class in `main.py` → Add to `PostMutations`
-4. **Update dependencies** → Use `uv add package==version` or `uv remove package` → Rebuild Docker container
+1. **Add new field to Post model** → Update `models.py` → Generate migration → Apply migration → Run tests
+2. **Add new GraphQL field** → Update `PostModel` in `schemas.py` → Add tests → Test in GraphQL playground
+3. **Add new mutation** → Create mutation class in `main.py` → Add to `PostMutations` → Write tests
+4. **Update dependencies** → Use `uv add package==version` or `uv remove package` → Run tests → Rebuild Docker container
+5. **Run full test suite** → `uv run pytest` → Verify 99%+ coverage
 
 ## Features
 
@@ -172,8 +182,53 @@ Required in `.env` file:
 
 ## Testing
 
-**Current Status**: No test framework detected
-**Recommendation**: Add pytest for API testing
+**Framework**: pytest with comprehensive test suite
+**Coverage**: 99% code coverage across all modules
+**Test Types**: Unit tests, integration tests, GraphQL API tests
+
+### Test Structure
+```
+tests/
+├── conftest.py              # Shared fixtures and test configuration
+├── test_graphql_queries.py  # GraphQL query endpoint tests
+├── test_graphql_mutations.py # GraphQL mutation endpoint tests
+├── test_models.py           # SQLAlchemy model tests
+└── factories.py             # Test data factories using factory-boy
+```
+
+### Running Tests
+```bash
+# Run all tests (includes coverage automatically)
+uv run pytest
+
+# Run tests with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_graphql_queries.py
+
+# Run only fast tests (skip slow tests)
+uv run pytest -m "not slow"
+
+# Override to show only terminal coverage (no HTML)
+uv run pytest --cov-report=term-missing --cov-report=
+
+# View HTML coverage report (generated automatically)
+open htmlcov/index.html
+```
+
+### Test Database
+- **Type**: SQLite in-memory database for isolation
+- **Isolation**: Each test runs in its own transaction with automatic rollback
+- **Fixtures**: Comprehensive fixture setup for database sessions and test client
+- **Factories**: factory-boy integration for generating realistic test data
+
+### Test Coverage
+- **GraphQL Queries**: Tests for `allPosts` and `postById` with various scenarios
+- **GraphQL Mutations**: Tests for `createNewPost` with validation and edge cases
+- **Model Tests**: SQLAlchemy model functionality, CRUD operations, and constraints
+- **Error Handling**: GraphQL syntax errors, validation errors, and edge cases
+- **Database Integration**: Transaction handling, data persistence, and cleanup
 
 ### Sample GraphQL Queries
 

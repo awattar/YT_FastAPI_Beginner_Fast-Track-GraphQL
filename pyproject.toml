@@ -20,4 +20,9 @@ dependencies = [
     "uvloop==0.21.0",
     "watchfiles==1.1.0",
     "websockets==15.0.1",
+    # Testing dependencies
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "httpx>=0.24.0",
+    "factory-boy>=3.2.0",
 ]
