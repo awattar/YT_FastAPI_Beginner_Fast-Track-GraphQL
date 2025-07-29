@@ -144,7 +144,7 @@ docker-compose up -d db
 
 ### Core Domain
 - **Post Entity** (`models.py`): Blog posts with title, author, content, timestamp
-- **CRUD Operations**: Create posts via GraphQL mutations, query all/by ID
+- **CRUD Operations**: Complete Create, Read, Update, Delete operations via GraphQL
 - **Modern ORM**: SQLAlchemy 2.0 with Mapped types and DeclarativeBase
 
 ### GraphQL API
@@ -153,6 +153,8 @@ docker-compose up -d db
   - `postById(postId: Int!)` - Get specific post by ID
 - **Mutations**:
   - `createNewPost(title: String!, content: String!)` - Create new post
+  - `updatePost(id: Int!, title: String, content: String, author: String)` - Update existing post
+  - `deletePost(id: Int!)` - Delete post by ID
 - **Endpoint**: `/graphql` with custom GraphiQL interface
 - **Integration**: Starlette-Graphene3 for FastAPI mounting
 
@@ -237,6 +239,32 @@ Create a post:
 mutation CreateNewPost {
   createNewPost(title: "new title1", content: "new content") {
     ok
+  }
+}
+```
+
+Update a post:
+```graphql
+mutation UpdatePost {
+  updatePost(id: 1, title: "Updated Title", author: "John Doe") {
+    ok
+    post {
+      id
+      title
+      content
+      author
+    }
+    error
+  }
+}
+```
+
+Delete a post:
+```graphql
+mutation DeletePost {
+  deletePost(id: 1) {
+    ok
+    error
   }
 }
 ```
