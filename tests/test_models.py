@@ -16,7 +16,8 @@ class TestPostModel:
         """Test basic post creation"""
         post = models.Post(
             title="Test Post",
-            content="Test content for the post"
+            content="Test content for the post",
+            author="Test Author"
         )
         
         test_db_session.add(post)
@@ -26,7 +27,7 @@ class TestPostModel:
         assert post.id is not None
         assert post.title == "Test Post"
         assert post.content == "Test content for the post"
-        assert post.author is None  # nullable field
+        assert post.author == "Test Author"  # required field
         assert isinstance(post.time_created, datetime)
     
     def test_create_post_with_author(self, test_db_session):
@@ -49,7 +50,8 @@ class TestPostModel:
         """Test that time_created is automatically set"""
         post = models.Post(
             title="Time Test Post",
-            content="Testing automatic timestamp"
+            content="Testing automatic timestamp",
+            author="Time Test Author"
         )
         
         test_db_session.add(post)
@@ -59,21 +61,70 @@ class TestPostModel:
         assert post.time_created is not None
         assert isinstance(post.time_created, datetime)
     
-    def test_post_string_fields_can_be_empty(self, test_db_session):
-        """Test that string fields can be empty strings"""
+    def test_post_string_fields_validation_constraints(self, test_db_session):
+        """Test that database constraints prevent empty title and content"""
+        import pytest
+        from sqlalchemy.exc import IntegrityError
+        
+        # Test empty title constraint
         post = models.Post(
             title="",
+            content="Valid content",
+            author="Test Author"
+        )
+        
+        test_db_session.add(post)
+        try:
+            test_db_session.commit()
+            pytest.fail("Expected IntegrityError for empty title constraint")
+        except IntegrityError as e:
+            assert "title_not_empty" in str(e)
+        test_db_session.rollback()
+        
+        # Test empty content constraint  
+        post = models.Post(
+            title="Valid title",
             content="",
+            author="Test Author"
+        )
+        
+        test_db_session.add(post)
+        try:
+            test_db_session.commit()
+            pytest.fail("Expected IntegrityError for empty content constraint")
+        except IntegrityError as e:
+            assert "content_not_empty" in str(e)
+        test_db_session.rollback()
+        
+        # Test that author cannot be empty string due to constraint
+        post = models.Post(
+            title="Valid title",
+            content="Valid content",
             author=""
         )
         
         test_db_session.add(post)
-        test_db_session.commit()
-        test_db_session.refresh(post)
+        try:
+            test_db_session.commit()
+            pytest.fail("Expected IntegrityError for empty author constraint")
+        except IntegrityError as e:
+            assert "author_not_empty" in str(e)
+        test_db_session.rollback()
         
-        assert post.title == ""
-        assert post.content == ""
-        assert post.author == ""
+        # Test that author is required (NOT NULL constraint)
+        post = models.Post(
+            title="Valid title",
+            content="Valid content"
+            # author is missing completely
+        )
+        
+        test_db_session.add(post)
+        try:
+            test_db_session.commit()
+            pytest.fail("Expected IntegrityError for null author constraint")
+        except IntegrityError as e:
+            assert "not null" in str(e).lower() or "null value" in str(e).lower()
+        test_db_session.rollback()
     
     def test_post_with_unicode_content(self, test_db_session):
         """Test post with unicode characters"""
@@ -98,7 +149,8 @@ class TestPostModel:
         
         post = models.Post(
             title="Long Content Post",
-            content=long_content
+            content=long_content,
+            author="Long Content Author"
         )
         
         test_db_session.add(post)
@@ -112,7 +164,8 @@ class TestPostModel:
         """Test querying post by ID"""
         post = models.Post(
             title="Query Test",
-            content="Testing query functionality"
+            content="Testing query functionality",
+            author="Query Test Author"
         )
         
         test_db_session.add(post)
@@ -130,8 +183,8 @@ class TestPostModel:
     
     def test_post_query_by_title(self, test_db_session):
         """Test querying post by title"""
-        post1 = models.Post(title="First Post", content="Content 1")
-        post2 = models.Post(title="Second Post", content="Content 2")
+        post1 = models.Post(title="First Post", content="Content 1", author="First Author")
+        post2 = models.Post(title="Second Post", content="Content 2", author="Second Author")
         
         test_db_session.add_all([post1, post2])
         test_db_session.commit()
@@ -147,7 +200,7 @@ class TestPostModel:
     def test_post_query_all(self, test_db_session):
         """Test querying all posts"""
         posts = [
-            models.Post(title=f"Post {i}", content=f"Content {i}")
+            models.Post(title=f"Post {i}", content=f"Content {i}", author=f"Author {i}")
             for i in range(5)
         ]
         
@@ -165,7 +218,8 @@ class TestPostModel:
         """Test updating post fields"""
         post = models.Post(
             title="Original Title",
-            content="Original content"
+            content="Original content",
+            author="Original Author"
         )
         
         test_db_session.add(post)
@@ -188,7 +242,8 @@ class TestPostModel:
         """Test deleting a post"""
         post = models.Post(
             title="To be deleted",
-            content="This post will be deleted"
+            content="This post will be deleted",
+            author="To be deleted author"
         )
         
         test_db_session.add(post)

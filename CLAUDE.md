@@ -121,6 +121,25 @@ docker-compose run app uv run alembic upgrade head
 docker-compose up --build
 ```
 
+## Database Migration Best Practices
+
+**Core Principle: One logical change per migration**
+
+Alembic autogenerate works best with incremental changes. Avoid changing multiple model aspects (constraints + lengths + nullable) in a single migration.
+
+**Good Practice:**
+- String length limits → separate migration
+- NOT NULL constraints → separate migration  
+- CHECK constraints → separate migration
+
+**Common Issues:**
+- **Empty migrations**: Alembic can't detect complex constraint changes (CHECK constraints, custom indexes)
+- **Schema drift**: Model changes not reflected in database constraints
+- **Solution**: Review generated migrations, edit manually when needed, test upgrade/downgrade cycles
+
+**Migration Testing:**
+Always test migration chain before committing: `upgrade head` → `downgrade -1` → `upgrade +1`
+
 ### Run Commands
 ```bash
 # Development (local)
@@ -134,7 +153,7 @@ docker-compose up -d db
 ```
 
 ### Common Workflows
-1. **Add new field to Post model** → Update `models.py` → Generate migration → Apply migration → Run tests
+1. **Database schema changes** → Make minimal model change → Generate migration → Review/edit migration → Test migration chain → Run tests
 2. **Add new GraphQL field** → Update `PostModel` in `schemas.py` → Add tests → Test in GraphQL playground
 3. **Add new mutation** → Create mutation class in `main.py` → Add to `PostMutations` → Write tests
 4. **Update dependencies** → Use `uv add package==version` or `uv remove package` → Run tests → Rebuild Docker container
@@ -151,10 +170,15 @@ docker-compose up -d db
 - **Queries**:
   - `allPosts` - Get all blog posts
   - `postById(postId: Int!)` - Get specific post by ID
-- **Mutations**:
-  - `createNewPost(title: String!, content: String!)` - Create new post
-  - `updatePost(id: Int!, title: String, content: String, author: String)` - Update existing post
+- **Mutations** (using Input Objects):
+  - `createNewPost(input: CreatePostInput!)` - Create new post with Input Object
+  - `updatePost(id: Int!, input: UpdatePostInput!)` - Update existing post with Input Object
   - `deletePost(id: Int!)` - Delete post by ID
+- **Enhanced Features**:
+  - **Input Objects**: Structured mutations with better introspection and validation
+  - **Service Layer**: Clean separation of business logic from GraphQL resolvers
+  - **Enhanced Error Messages**: Field-specific validation feedback for better debugging
+  - **Pydantic Integration**: `exclude_unset=True` for dynamic partial updates
 - **Endpoint**: `/graphql` with custom GraphiQL interface
 - **Integration**: Starlette-Graphene3 for FastAPI mounting
 
@@ -227,7 +251,7 @@ open htmlcov/index.html
 
 ### Test Coverage
 - **GraphQL Queries**: Tests for `allPosts` and `postById` with various scenarios
-- **GraphQL Mutations**: Tests for `createNewPost` with validation and edge cases
+- **GraphQL Mutations**: Tests for `createNewPost` with Input Objects, validation and edge cases
 - **Model Tests**: SQLAlchemy model functionality, CRUD operations, and constraints
 - **Error Handling**: GraphQL syntax errors, validation errors, and edge cases
 - **Database Integration**: Transaction handling, data persistence, and cleanup
@@ -236,17 +260,8 @@ open htmlcov/index.html
 
 Create a post:
 ```graphql
-mutation CreateNewPost {
-  createNewPost(title: "new title1", content: "new content") {
-    ok
-  }
-}
-```
-
-Update a post:
-```graphql
-mutation UpdatePost {
-  updatePost(id: 1, title: "Updated Title", author: "John Doe") {
+mutation CreateNewPost($input: CreatePostInput!) {
+  createNewPost(input: $input) {
     ok
     post {
       id
@@ -259,13 +274,58 @@ mutation UpdatePost {
 }
 ```
 
+Variables:
+```json
+{
+  "input": {
+    "title": "New Blog Post",
+    "content": "This is the content of my new blog post",
+    "author": "John Doe"
+  }
+}
+```
+
+Update a post:
+```graphql
+mutation UpdatePost($id: Int!, $input: UpdatePostInput!) {
+  updatePost(id: $id, input: $input) {
+    ok
+    post {
+      id
+      title
+      content
+      author
+    }
+    error
+  }
+}
+```
+
+Variables:
+```json
+{
+  "id": 1,
+  "input": {
+    "title": "Updated Title",
+    "author": "Jane Smith"
+  }
+}
+```
+
 Delete a post:
 ```graphql
-mutation DeletePost {
-  deletePost(id: 1) {
+mutation DeletePost($id: Int!) {
+  deletePost(id: $id) {
     ok
     error
   }
+}
+```
+
+Variables:
+```json
+{
+  "id": 1
 }
 ```
 

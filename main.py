@@ -1,15 +1,38 @@
 import graphene
 from fastapi import FastAPI
 from starlette_graphene3 import GraphQLApp
+from pydantic import ValidationError
+from contextvars import ContextVar
+from typing import Optional
 
 import models
 from db_conf import db_session
-from schemas import PostModel, PostSchema
+from schemas import PostModel, PostCreateSchema, PostUpdateSchema, CreatePostInput, UpdatePostInput
+from services.post_service import PostService
 from graphiql_handler import make_custom_graphiql_handler
 
-db = db_session.session_factory()
+# Default database session
+default_db = db_session.session_factory()
+
+# Context variable for test database sessions
+test_db_context: ContextVar[Optional[object]] = ContextVar('test_db_context', default=None)
+
+def get_db_session():
+    """Get database session - uses test context if available, otherwise default"""
+    test_db = test_db_context.get()
+    return test_db if test_db is not None else default_db
 
 app = FastAPI()
+
+
+def format_validation_errors(validation_error: ValidationError) -> str:
+    """Format Pydantic validation errors into readable error messages"""
+    error_messages = []
+    for err in validation_error.errors():
+        loc = " → ".join(str(i) for i in err['loc'])
+        msg = f"{loc}: {err['msg']}"
+        error_messages.append(msg)
+    return ", ".join(error_messages)
 
 
 class Query(graphene.ObjectType):
@@ -18,63 +41,59 @@ class Query(graphene.ObjectType):
     post_by_id = graphene.Field(PostModel, post_id=graphene.Int(required=True))
 
     def resolve_all_posts(self, info):
-        return db.query(models.Post).all()
+        service = PostService(get_db_session())
+        return service.get_all_posts()
 
     def resolve_post_by_id(self, info, post_id):
-        return db.query(models.Post).filter(models.Post.id == post_id).first()
+        service = PostService(get_db_session())
+        return service.get_post_by_id(post_id)
 
 
 class CreateNewPost(graphene.Mutation):
+    """Create a new post using Input Object"""
     class Arguments:
-        title = graphene.String(required=True)
-        content = graphene.String(required=True)
-
-    ok = graphene.Boolean()
-
-    @staticmethod
-    def mutate(root, info, title, content):
-        post = PostSchema(title=title, content=content)
-        db_post = models.Post(title=post.title, content=post.content)
-        db.add(db_post)
-        db.commit()
-        db.refresh(db_post)
-        ok = True
-        return CreateNewPost(ok=ok)
-
-
-class UpdatePost(graphene.Mutation):
-    class Arguments:
-        id = graphene.Int(required=True)
-        title = graphene.String()
-        content = graphene.String()
-        author = graphene.String()
+        input = CreatePostInput(required=True)
 
     ok = graphene.Boolean()
     post = graphene.Field(PostModel)
     error = graphene.String()
 
     @staticmethod
-    def mutate(root, info, id, title=None, content=None, author=None):
-        # Find the post to update
-        db_post = db.query(models.Post).filter(models.Post.id == id).first()
-        
-        if not db_post:
-            return UpdatePost(ok=False, error=f"Post with id {id} not found")
-        
-        # Update only provided fields
-        if title is not None:
-            db_post.title = title
-        if content is not None:
-            db_post.content = content
-        if author is not None:
-            db_post.author = author
-        
+    def mutate(root, info, input):
         try:
-            db.commit()
-            db.refresh(db_post)
-            return UpdatePost(ok=True, post=db_post)
+            service = PostService(get_db_session())
+            post_data = PostCreateSchema(**input)
+            db_post = service.create_post(post_data)
+            return CreateNewPost(ok=True, post=db_post)
+        except ValidationError as e:
+            return CreateNewPost(ok=False, error=format_validation_errors(e))
         except Exception as e:
-            db.rollback()
+            get_db_session().rollback()
+            return CreateNewPost(ok=False, error=f"Failed to create post: {str(e)}")
+
+
+class UpdatePost(graphene.Mutation):
+    """Update a post using Input Object with Pydantic exclude_unset"""
+    class Arguments:
+        id = graphene.Int(required=True)
+        input = UpdatePostInput(required=True)
+
+    ok = graphene.Boolean()
+    post = graphene.Field(PostModel)
+    error = graphene.String()
+
+    @staticmethod
+    def mutate(root, info, id, input):
+        try:
+            service = PostService(get_db_session())
+            db_post = service.update_post(id, input)
+            return UpdatePost(ok=True, post=db_post)
+        except ValidationError as e:
+            return UpdatePost(ok=False, error=format_validation_errors(e))
+        except ValueError as e:
+            return UpdatePost(ok=False, error=str(e))
+        except Exception as e:
+            get_db_session().rollback()
             return UpdatePost(ok=False, error=f"Failed to update post: {str(e)}")
 
 
@@ -87,18 +106,14 @@ class DeletePost(graphene.Mutation):
 
     @staticmethod
     def mutate(root, info, id):
-        # Find the post to delete
-        db_post = db.query(models.Post).filter(models.Post.id == id).first()
-        
-        if not db_post:
-            return DeletePost(ok=False, error=f"Post with id {id} not found")
-        
         try:
-            db.delete(db_post)
-            db.commit()
+            service = PostService(get_db_session())
+            service.delete_post(id)
             return DeletePost(ok=True)
+        except ValueError as e:
+            return DeletePost(ok=False, error=str(e))
         except Exception as e:
-            db.rollback()
+            get_db_session().rollback()
             return DeletePost(ok=False, error=f"Failed to delete post: {str(e)}")
 
 

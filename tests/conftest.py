@@ -60,18 +60,16 @@ def test_db_session(test_engine):
 def test_client(test_db_session) -> Generator[TestClient, None, None]:
     """Create FastAPI test client with database dependency override"""
     
-    # Store original db session
+    # Set test database context
     import main
-    original_db = main.db
+    token = main.test_db_context.set(test_db_session)
     
-    # Replace with test session
-    main.db = test_db_session
-    
-    with TestClient(app) as client:
-        yield client
-    
-    # Restore original session
-    main.db = original_db
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        # Reset context
+        main.test_db_context.reset(token)
 
 
 @pytest.fixture
@@ -86,7 +84,7 @@ def sample_post_data():
 @pytest.fixture
 def create_sample_post(test_db_session):
     """Factory fixture to create sample posts in test database"""
-    def _create_post(title="Sample Post", content="Sample content", author=None):
+    def _create_post(title="Sample Post", content="Sample content", author="Sample Author"):
         post = models.Post(
             title=title,
             content=content,
