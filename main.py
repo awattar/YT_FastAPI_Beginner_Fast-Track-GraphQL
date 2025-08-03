@@ -4,10 +4,11 @@ from starlette_graphene3 import GraphQLApp
 from pydantic import ValidationError
 from contextvars import ContextVar
 from typing import Optional
+from graphql import GraphQLError
 
 import models
 from db_conf import db_session
-from schemas import PostModel, PostCreateSchema, PostUpdateSchema, CreatePostInput, UpdatePostInput
+from schemas import PostModel, PostCreateSchema, PostUpdateSchema, CreatePostInput, UpdatePostInput, PostsResponse, PostPagination
 from services.post_service import PostService
 from graphiql_handler import make_custom_graphiql_handler
 
@@ -37,10 +38,44 @@ def format_validation_errors(validation_error: ValidationError) -> str:
 
 class Query(graphene.ObjectType):
 
+    # Paginated posts query
+    posts = graphene.Field(
+        PostsResponse,
+        page=graphene.Int(default_value=1, description="Page number (starts from 1)"),
+        limit=graphene.Int(default_value=10, description="Number of posts per page (max 100)")
+    )
+    
+    # Legacy query for backward compatibility
     all_posts = graphene.List(PostModel)
     post_by_id = graphene.Field(PostModel, post_id=graphene.Int(required=True))
 
+    def resolve_posts(self, info, page=1, limit=10):
+        """Resolve paginated posts using simple offset/limit pagination"""
+        service = PostService(get_db_session())
+        
+        try:
+            posts, total_count, total_pages, current_page, has_next_page, has_previous_page = service.get_posts_paginated(
+                page=page, limit=limit
+            )
+            
+            # Create pagination metadata
+            pagination = PostPagination(
+                current_page=current_page,
+                total_pages=total_pages,
+                total_count=total_count,
+                has_next_page=has_next_page,
+                has_previous_page=has_previous_page
+            )
+            
+            # Return simple response
+            return PostsResponse(posts=posts, pagination=pagination)
+            
+        except ValueError as e:
+            # Handle pagination errors gracefully
+            raise GraphQLError(str(e))
+
     def resolve_all_posts(self, info):
+        """Legacy resolver - deprecated in favor of paginated 'posts' query"""
         service = PostService(get_db_session())
         return service.get_all_posts()
 

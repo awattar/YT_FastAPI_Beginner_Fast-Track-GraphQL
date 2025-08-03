@@ -168,13 +168,16 @@ docker-compose up -d db
 
 ### GraphQL API
 - **Queries**:
-  - `allPosts` - Get all blog posts
+  - `posts(page: Int, limit: Int)` - Get paginated blog posts with simple page/limit pagination
+  - `allPosts` - Get all blog posts (legacy, use `posts` for pagination)
   - `postById(postId: Int!)` - Get specific post by ID
 - **Mutations** (using Input Objects):
   - `createNewPost(input: CreatePostInput!)` - Create new post with Input Object
   - `updatePost(id: Int!, input: UpdatePostInput!)` - Update existing post with Input Object
   - `deletePost(id: Int!)` - Delete post by ID
 - **Enhanced Features**:
+  - **Simple Pagination**: Page/limit pagination with metadata (currentPage, totalPages, hasNextPage)
+    - *Future Enhancement*: Consider upgrading to Relay Connection-based pagination when requirements become more complex (real-time updates, cursor-based navigation, GraphQL best practices)
   - **Input Objects**: Structured mutations with better introspection and validation
   - **Service Layer**: Clean separation of business logic from GraphQL resolvers
   - **Enhanced Error Messages**: Field-specific validation feedback for better debugging

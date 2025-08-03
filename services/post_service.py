@@ -1,6 +1,8 @@
 """Post service for business logic operations"""
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
+from sqlalchemy import desc, func
+import math
 
 import models
 from schemas import PostCreateSchema, PostUpdateSchema
@@ -65,3 +67,49 @@ class PostService:
         self.db.delete(db_post)
         self.db.commit()
         return True
+    
+    # Simple Pagination Method
+    def get_posts_paginated(
+        self,
+        page: int = 1,
+        limit: int = 10
+    ) -> Tuple[List[models.Post], int, int, int, bool, bool]:
+        """
+        Get paginated posts using simple offset/limit pagination
+        
+        Args:
+            page: Page number (1-based)
+            limit: Number of posts per page
+            
+        Returns:
+            Tuple of (posts, total_count, total_pages, current_page, has_next_page, has_previous_page)
+        """
+        # Validate arguments
+        if page < 1:
+            raise ValueError("page must be >= 1")
+        if limit < 1:
+            raise ValueError("limit must be >= 1")
+        if limit > 100:
+            raise ValueError("limit cannot exceed 100")
+        
+        # Get total count
+        total_count = self.db.query(func.count(models.Post.id)).scalar()
+        
+        # Calculate pagination metadata
+        total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+        has_next_page = page < total_pages
+        has_previous_page = page > 1
+        
+        # Calculate offset
+        offset = (page - 1) * limit
+        
+        # Get posts for current page
+        posts = (
+            self.db.query(models.Post)
+            .order_by(desc(models.Post.id))  # Newest first
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        
+        return posts, total_count, total_pages, page, has_next_page, has_previous_page

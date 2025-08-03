@@ -81,3 +81,19 @@ class PostModel(SQLAlchemyObjectType):
         model = Post
         load_instance = True
         sqla_session = db_session
+
+
+# Simple Pagination Types
+class PostPagination(graphene.ObjectType):
+    """Pagination metadata"""
+    current_page = graphene.Int(description="Current page number")
+    total_pages = graphene.Int(description="Total number of pages")
+    total_count = graphene.Int(description="Total number of posts")
+    has_next_page = graphene.Boolean(description="Whether there is a next page")
+    has_previous_page = graphene.Boolean(description="Whether there is a previous page")
+
+
+class PostsResponse(graphene.ObjectType):
+    """Response type for paginated posts"""
+    posts = graphene.List(PostModel, description="List of posts")
+    pagination = graphene.Field(PostPagination, description="Pagination metadata")
